@@ -1,4 +1,4 @@
-import { TOOL_SPEC } from "./config.js";
+import { TOOL_CONFIG } from "./config.js";
 import { extractJsonObject, normalizeToolRequest } from "./tool-protocol.js";
 
 const INTERNAL_PROMPT_FRAGMENTS = [
@@ -33,7 +33,7 @@ export function buildMessages(state, userInput) {
     { role: "system", content: state.systemPrompt },
     {
       role: "system",
-      content: `${TOOL_SPEC}\nActive workspace: ${state.cwd}`,
+      content: `${TOOL_CONFIG.toolSpec}\nActive workspace: ${state.cwd}`,
     },
     ...state.history,
     { role: "user", content: userInput },
@@ -41,9 +41,14 @@ export function buildMessages(state, userInput) {
 }
 
 export function buildToolResultMessage(result) {
+  // Model should see a simplified result view
+  const payload = result.ok
+    ? { ok: true, tool: result.tool, output: result.data }
+    : { ok: false, tool: result.tool, error: result.error.message };
+
   return {
     role: "system",
-    content: `Tool result:\n${JSON.stringify(result, null, 2)}`,
+    content: `Tool result:\n${JSON.stringify(payload, null, 2)}`,
   };
 }
 
@@ -68,13 +73,14 @@ export function buildPostToolContinueMessage() {
 }
 
 export function buildTaskContinuationMessage(userInput, lastToolResult) {
+  const summary = lastToolResult.ok ? lastToolResult.data : lastToolResult.error.message;
   return {
     role: "system",
     content:
       "The user's request is not complete yet. Do not stop at inspection or analysis if the user asked you to create, update, or delete something. " +
       "Continue from the latest tool result and request the next tool if needed. " +
       `Original user request: ${userInput}\n` +
-      `Latest tool result summary: ${JSON.stringify(lastToolResult)}`,
+      `Latest tool result summary: ${typeof summary === "string" ? summary.slice(0, 500) : "N/A"}`,
   };
 }
 

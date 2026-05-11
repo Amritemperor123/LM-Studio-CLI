@@ -6,9 +6,10 @@ import { stdin as input, stdout as output } from "node:process";
 import { runAgentTurn } from "./agent.js";
 import { getClient } from "./client.js";
 import { handleCommand } from "./commands.js";
-import { DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "./config.js";
+import { MODEL_CONFIG } from "./config.js";
 import { resolveLaunchDirectory } from "./path-utils.js";
 import { paint, ANSI, printBanner, printError, printInfo } from "./ui.js";
+import { logger } from "./logger.js";
 
 async function main() {
   try {
@@ -20,12 +21,15 @@ async function main() {
   }
 
   const state = {
-    baseUrl: DEFAULT_BASE_URL,
+    baseUrl: MODEL_CONFIG.baseUrl,
     cwd: process.cwd(),
-    model: DEFAULT_MODEL,
-    systemPrompt: DEFAULT_SYSTEM_PROMPT,
-    temperature: Number.isFinite(DEFAULT_TEMPERATURE) ? DEFAULT_TEMPERATURE : 0.2,
+    model: MODEL_CONFIG.defaultModel,
+    systemPrompt: MODEL_CONFIG.defaultSystemPrompt,
+    temperature: Number.isFinite(MODEL_CONFIG.defaultTemperature) ? MODEL_CONFIG.defaultTemperature : 0.2,
     history: [],
+    mode: "fast", // Default mode for Stage 0
+    currentRun: null,
+    workspaceMemoryRef: null,
   };
 
   const client = getClient(state.baseUrl);
@@ -38,6 +42,7 @@ async function main() {
   });
 
   printBanner(state);
+  logger.info("Session started.");
 
   while (true) {
     let line;
@@ -73,11 +78,13 @@ async function main() {
       output.write("\n");
       printError(error.message);
       printInfo("If LM Studio uses another endpoint, set LM_STUDIO_BASE_URL before starting the CLI.");
+      logger.error("Error during agent turn", error);
     }
   }
 
   rl.close();
   output.write(`${paint(ANSI.dim, "Session closed.")}\n`);
+  logger.info("Session ended.");
 }
 
 main().catch((error) => {

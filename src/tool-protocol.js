@@ -1,4 +1,4 @@
-import { SUPPORTED_TOOLS } from "./config.js";
+import { TOOL_CONFIG } from "./config.js";
 
 export function unwrapJsonFence(value) {
   const trimmed = value.trim();
@@ -37,7 +37,7 @@ export function normalizeToolRequest(parsed) {
 
   const normalized = { ...parsed };
 
-  if (typeof normalized.tool !== "string" && typeof normalized.type === "string" && SUPPORTED_TOOLS.has(normalized.type)) {
+  if (typeof normalized.tool !== "string" && typeof normalized.type === "string" && TOOL_CONFIG.supportedTools.has(normalized.type)) {
     normalized.tool = normalized.type;
     normalized.type = "tool_request";
   }
@@ -46,7 +46,7 @@ export function normalizeToolRequest(parsed) {
     return null;
   }
 
-  if (!SUPPORTED_TOOLS.has(normalized.tool)) {
+  if (!TOOL_CONFIG.supportedTools.has(normalized.tool)) {
     return null;
   }
 
