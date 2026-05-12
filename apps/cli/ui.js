@@ -120,11 +120,29 @@ export function printModels(models, selectedModel) {
     return;
   }
 
+  let anyLoaded = false;
   for (const model of models) {
-    const marker = model.id === selectedModel ? paint(ANSI.green, "*") : " ";
-    output.write(`${marker} ${model.id}\n`);
+    const isSelected = model.id === selectedModel;
+    const isLoaded = model.state === "loaded" || model.status === "loaded";
+    if (isLoaded) anyLoaded = true;
+    
+    let marker = "  ";
+    if (isSelected && isLoaded) {
+      marker = paint(ANSI.green, "* ");
+    } else if (isSelected) {
+      marker = paint(ANSI.yellow, "» ");
+    } else if (isLoaded) {
+      marker = paint(ANSI.cyan, "L ");
+    }
+
+    const stateInfo = isLoaded ? paint(ANSI.dim, " (loaded)") : "";
+    output.write(`${marker} ${model.id}${stateInfo}\n`);
   }
 
+  output.write(`\n${paint(ANSI.dim, "* = loaded & active   L = loaded   » = active (not loaded)")}\n`);
+  if (!anyLoaded) {
+    output.write(paint(ANSI.yellow, "Note: No models appear to be loaded in RAM. Use /load <id> to load one.\n"));
+  }
   output.write("\n");
 }
 

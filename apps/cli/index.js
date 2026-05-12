@@ -49,7 +49,7 @@ async function main() {
   });
 
   printBanner(state);
-  logger.info("Session started.");
+  logger.debug("Session started.");
 
   while (true) {
     let line;
@@ -91,7 +91,7 @@ async function main() {
 
   rl.close();
   output.write(`${paint(ANSI.dim, "Session closed.")}\n`);
-  logger.info("Session ended.");
+  logger.debug("Session ended.");
 }
 
 main().catch((error) => {

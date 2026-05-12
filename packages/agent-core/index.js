@@ -32,7 +32,7 @@ export async function runAgentTurn(line, state, client, rl) {
     startedAt: new Date(),
   };
 
-  logger.info(`Starting agent turn (Run ID: ${state.currentRun.id})`);
+  logger.debug(`Starting agent turn (Run ID: ${state.currentRun.id})`);
   telemetry.emit("RUN_START", {
     id: state.currentRun.id,
     userRequest: line,
@@ -52,7 +52,7 @@ export async function runAgentTurn(line, state, client, rl) {
   try {
     for (let round = 0; round < RUNTIME_LIMITS.maxToolRounds; round += 1) {
       if (state.currentRun.cancelled) {
-        logger.info("Run cancelled by user.");
+        logger.debug("Run cancelled by user.");
         break;
       }
 
@@ -67,6 +67,10 @@ export async function runAgentTurn(line, state, client, rl) {
       let hasStreamedInRound = false;
 
       try {
+        let streamingBuffer = "";
+        let isPotentialToolRequest = false;
+        let hasDecisionBeenMade = false;
+
         for await (const token of client.chatStream({
           model: state.model,
           messages,
@@ -79,16 +83,39 @@ export async function runAgentTurn(line, state, client, rl) {
         })) {
           if (state.currentRun.cancelled) break;
           
-          if (!hasStreamedInRound) {
+          reply += token;
+
+          if (!hasDecisionBeenMade) {
+            streamingBuffer += token;
+            const trimmedBuffer = streamingBuffer.trim();
+            if (trimmedBuffer.length > 0) {
+              if (trimmedBuffer.startsWith("{") || trimmedBuffer.startsWith("```")) {
+                isPotentialToolRequest = true;
+                // Keep buffering
+              } else {
+                // Not a tool request starting immediately, flush buffer
+                printAssistantLabel();
+                printToken(streamingBuffer);
+                hasDecisionBeenMade = true;
+                hasStreamedInRound = true;
+                hasStreamedInTurn = true;
+              }
+            }
+          } else {
+            printToken(token);
+          }
+        }
+        
+        if (isPotentialToolRequest && !hasDecisionBeenMade) {
+          const toolRequest = parseToolRequest(reply);
+          if (!toolRequest) {
             printAssistantLabel();
+            printToken(streamingBuffer);
             hasStreamedInRound = true;
             hasStreamedInTurn = true;
           }
-          
-          reply += token;
-          printToken(token);
         }
-        
+
         if (hasStreamedInRound) {
           process.stdout.write("\n");
         }
@@ -106,9 +133,12 @@ export async function runAgentTurn(line, state, client, rl) {
           model: state.model,
           usage: result.meta?.usage,
         });
-        printAssistant(reply);
-        hasStreamedInRound = true;
-        hasStreamedInTurn = true;
+
+        if (!parseToolRequest(reply)) {
+          printAssistant(reply);
+          hasStreamedInRound = true;
+          hasStreamedInTurn = true;
+        }
       }
 
       if (state.currentRun.cancelled) break;
@@ -237,7 +267,6 @@ export async function runAgentTurn(line, state, client, rl) {
       });
       
       if (lastToolResult.ok) {
-        printInfo(`${toolRequest.tool} completed${toolRequest.path ? ` for ${toolRequest.path}` : ""}.`);
         logger.debug(`${toolRequest.tool} succeeded`);
         messages.push(buildToolResultMessage(lastToolResult));
       } else {
@@ -283,6 +312,6 @@ export async function runAgentTurn(line, state, client, rl) {
       durationMs: Date.now() - state.currentRun.startedAt.getTime(),
     });
     state.currentRun = null;
-    logger.info("Agent turn completed.");
+    logger.debug("Agent turn completed.");
   }
 }

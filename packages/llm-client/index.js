@@ -49,6 +49,23 @@ export function getClient(baseUrl) {
 
   return {
     async listModels() {
+      // LM Studio's /v1/models is standard but lacks load state info.
+      // The internal /api/v1/models endpoint provides 'state: "loaded"'.
+      if (normalizedBaseUrl.endsWith("/v1")) {
+        const internalUrl = normalizedBaseUrl.replace(/\/v1$/, "/api/v1/models");
+        try {
+          const response = await fetch(internalUrl);
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data.data)) {
+              return data.data;
+            }
+          }
+        } catch (error) {
+          logger.debug("Failed to fetch from internal LM Studio API, falling back to /v1/models");
+        }
+      }
+
       const result = await request("/models");
       if (!result.ok) {
         return [];
