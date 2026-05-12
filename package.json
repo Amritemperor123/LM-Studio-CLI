@@ -4,12 +4,21 @@
   "description": "Terminal chat UI for LM Studio's OpenAI-compatible API.",
   "type": "module",
   "bin": {
-    "lms-cli": "./src/index.js"
+    "lms-cli": "./apps/cli/index.js"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node apps/cli/index.js",
+    "dashboard": "node apps/dashboard/index.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
   }
 }

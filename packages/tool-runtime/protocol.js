@@ -1,4 +1,4 @@
-import { TOOL_CONFIG } from "./config.js";
+import { TOOL_CONFIG } from "../shared/config.js";
 
 export function unwrapJsonFence(value) {
   const trimmed = value.trim();
@@ -15,6 +15,31 @@ export function extractJsonObject(value) {
     .replace(/<\/?tool_request>/gi, "")
     .replace(/<\/?model_answer>/gi, "")
     .trim();
+
+  // Support for <|tool_call|> tags (common in Qwen/Gemma)
+  if (normalized.includes("<|tool_call|>")) {
+    try {
+      const match = normalized.match(/<\|tool_call\|>(.*?)($|<\|)/s);
+      if (match) {
+        const content = match[1].trim();
+        // If it's call:tool_name{...}
+        if (content.startsWith("call:")) {
+          const toolPart = content.slice(5);
+          const jsonStart = toolPart.indexOf("{");
+          if (jsonStart !== -1) {
+            const tool = toolPart.slice(0, jsonStart).trim();
+            const args = JSON.parse(toolPart.slice(jsonStart));
+            return { type: "tool_request", tool, ...args };
+          }
+          return { type: "tool_request", tool: toolPart };
+        }
+        // If it's just JSON inside the tag
+        return JSON.parse(content);
+      }
+    } catch {
+      // Fall through to standard JSON extraction
+    }
+  }
 
   const start = normalized.indexOf("{");
   const end = normalized.lastIndexOf("}");
@@ -37,8 +62,20 @@ export function normalizeToolRequest(parsed) {
 
   const normalized = { ...parsed };
 
+  // Handle shorthand {"tool_request": "name", ...args}
+  if (typeof normalized.tool_request === "string" && TOOL_CONFIG.supportedTools.has(normalized.tool_request)) {
+    normalized.tool = normalized.tool_request;
+    normalized.type = "tool_request";
+    delete normalized.tool_request;
+  }
+
   if (typeof normalized.tool !== "string" && typeof normalized.type === "string" && TOOL_CONFIG.supportedTools.has(normalized.type)) {
     normalized.tool = normalized.type;
+    normalized.type = "tool_request";
+  }
+
+  // If we have a valid tool but missing/wrong type, fix it (lenient parsing)
+  if (typeof normalized.tool === "string" && TOOL_CONFIG.supportedTools.has(normalized.tool)) {
     normalized.type = "tool_request";
   }
 

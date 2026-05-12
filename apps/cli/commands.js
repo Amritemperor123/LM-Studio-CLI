@@ -1,6 +1,6 @@
-import { EXIT_COMMANDS } from "./config.js";
+import { EXIT_COMMANDS } from "../../packages/shared/config.js";
 import { printError, printHelp, printInfo, printModels, ANSI, paint } from "./ui.js";
-import { logger } from "./logger.js";
+import { logger } from "../../packages/shared/logger.js";
 
 export async function ensureSelectedModel(state, client) {
   if (state.model) {
@@ -52,6 +52,38 @@ export async function handleCommand(line, state, client) {
       printInfo(`Active model set to ${paint(ANSI.bold, state.model)}.`);
       logger.info(`Model changed to: ${state.model}`);
       return true;
+    case "/load":
+      if (!argument) {
+        printError("Provide a model id to load. Example: /load qwen2.5-coder-7b-instruct");
+        return true;
+      }
+      try {
+        printInfo(`Loading model ${paint(ANSI.bold, argument)}...`);
+        const result = await client.loadModel(argument);
+        if (result.ok) {
+          state.model = argument;
+          printInfo(`Successfully loaded and selected ${paint(ANSI.bold, state.model)}.`);
+        } else {
+          printError(`Failed to load model "${argument}". Ensure it is downloaded in LM Studio.`);
+        }
+      } catch (error) {
+        printError(`Error loading model: ${error.message}`);
+      }
+      return true;
+    case "/unload":
+      try {
+        printInfo("Unloading all models...");
+        const result = await client.unloadModel();
+        if (result.ok) {
+          state.model = "";
+          printInfo("All models unloaded successfully.");
+        } else {
+          printError(`Failed to unload models: ${result.error.message}`);
+        }
+      } catch (error) {
+        printError(`Error unloading models: ${error.message}`);
+      }
+      return true;
     case "/system":
       if (!argument) {
         printError("Provide a system prompt after /system.");
@@ -63,6 +95,18 @@ export async function handleCommand(line, state, client) {
       return true;
     case "/pwd":
       printInfo(state.cwd);
+      return true;
+    case "/stop":
+      if (state.currentRun) {
+        state.currentRun.cancelled = true;
+        if (state.currentRun.activeProcess) {
+          state.currentRun.activeProcess.kill();
+          logger.info(`Killed process ${state.currentRun.activeProcess.pid} via /stop`);
+        }
+        printInfo("Execution stop requested.");
+      } else {
+        printInfo("No active execution to stop.");
+      }
       return true;
     case "/clear":
       state.history = [];

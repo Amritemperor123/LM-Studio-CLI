@@ -1,5 +1,5 @@
-import { TOOL_CONFIG } from "./config.js";
-import { extractJsonObject, normalizeToolRequest } from "./tool-protocol.js";
+import { TOOL_CONFIG } from "../shared/config.js";
+import { extractJsonObject, normalizeToolRequest } from "../tool-runtime/protocol.js";
 
 const INTERNAL_PROMPT_FRAGMENTS = [
   "Your last response did not follow the tool protocol closely enough.",
@@ -47,8 +47,13 @@ export function buildToolResultMessage(result) {
     : { ok: false, tool: result.tool, error: result.error.message };
 
   return {
-    role: "system",
-    content: `Tool result:\n${JSON.stringify(payload, null, 2)}`,
+    role: "user",
+    content: [
+      `System: Tool result:`,
+      JSON.stringify(payload, null, 2),
+      "",
+      "Now either answer the user in plain text, or request another tool with valid JSON if needed.",
+    ].join("\n"),
   };
 }
 
@@ -60,15 +65,6 @@ export function buildToolRecoveryMessage(reply) {
       "If you need a tool, reply now with only valid tool_request JSON. " +
       "Otherwise answer the user normally in plain text. " +
       `Previous response: ${reply || "(empty response)"}`,
-  };
-}
-
-export function buildPostToolContinueMessage() {
-  return {
-    role: "system",
-    content:
-      "You have received a real tool result. Now either answer the user in plain text, " +
-      "or request one more tool with valid tool_request JSON if absolutely necessary.",
   };
 }
 
@@ -94,6 +90,15 @@ export function responseNeedsRecovery(reply) {
   const parsed = extractJsonObject(trimmed);
 
   if (!parsed) {
+    // Check if it looks like a failed tool call (e.g. contains XML-like tags or tool names but no JSON)
+    const lower = trimmed.toLowerCase();
+    const hasToolKeywords = ["tool", "call", "request", "execute"].some(k => lower.includes(k));
+    const hasToolNames = Array.from(TOOL_CONFIG.supportedTools).some(t => lower.includes(t));
+    
+    if (hasToolKeywords && hasToolNames) {
+      return true;
+    }
+    
     return false;
   }
 

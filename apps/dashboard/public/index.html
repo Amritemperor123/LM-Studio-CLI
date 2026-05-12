@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LM Studio CLI Agent Dashboard</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101418;
+      --panel: #171d22;
+      --panel-2: #1d252b;
+      --line: #2d3841;
+      --muted: #94a3ad;
+      --text: #edf3f7;
+      --blue: #58a6ff;
+      --cyan: #45d0c1;
+      --green: #66d17e;
+      --yellow: #e4b84b;
+      --red: #f47067;
+      --violet: #b78cff;
+      --shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      background: #12181d;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 { font-size: 20px; font-weight: 760; }
+    h2 { font-size: 14px; font-weight: 720; }
+    h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; }
+
+    .brand, .header-stats, .stat-row, .status, .toolbar, .phase-card, .token-split {
+      display: flex;
+      align-items: center;
+    }
+
+    .brand { gap: 12px; min-width: 260px; }
+    .logo {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      background: #1f3341;
+      border: 1px solid #315062;
+      border-radius: 8px;
+      color: var(--cyan);
+      font-weight: 800;
+    }
+
+    .subtle { color: var(--muted); font-size: 12px; }
+    .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+
+    .status { gap: 8px; margin-top: 3px; }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--red); }
+    .dot.connected { background: var(--green); box-shadow: 0 0 0 4px rgba(102, 209, 126, 0.12); }
+
+    .header-stats { gap: 22px; justify-content: flex-end; flex-wrap: wrap; }
+    .header-metric { min-width: 92px; }
+    .header-metric .value { margin-top: 3px; font-size: 15px; font-weight: 760; }
+
+    main {
+      height: calc(100vh - 78px);
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(340px, 0.85fr);
+      gap: 16px;
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    .column {
+      display: grid;
+      gap: 16px;
+      min-height: 0;
+    }
+
+    .column.left { grid-template-rows: 1.15fr 0.85fr; }
+    .column.right { grid-template-rows: auto auto minmax(0, 1fr); }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .panel-body { padding: 16px; }
+    .scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: #4a5b65 #172027; }
+
+    .toolbar { gap: 8px; }
+    button {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--text);
+      background: #11181d;
+      padding: 0 10px;
+      cursor: pointer;
+    }
+    button:hover { border-color: #55707d; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 26px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: #12191f;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .phase-card {
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #12191f;
+    }
+
+    .phase-name { font-size: 15px; font-weight: 760; text-transform: capitalize; }
+    .phase-meta { margin-top: 3px; }
+
+    .timeline {
+      height: calc(100% - 67px);
+      padding: 8px 16px 16px;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(45, 56, 65, 0.72);
+    }
+
+    .event-time { color: var(--muted); font-size: 12px; padding-top: 2px; }
+    .event-title { display: flex; align-items: center; gap: 8px; font-weight: 720; font-size: 13px; }
+    .event-message { color: #c6d1d8; margin-top: 5px; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+    .event-dot { width: 9px; height: 9px; border-radius: 99px; background: var(--blue); }
+    .event.tool .event-dot { background: var(--yellow); }
+    .event.result-ok .event-dot, .event.reply .event-dot { background: var(--green); }
+    .event.result-fail .event-dot, .event.error .event-dot { background: var(--red); }
+    .event.phase .event-dot { background: var(--violet); }
+
+    .empty {
+      height: 100%;
+      min-height: 120px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      color: var(--muted);
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      padding: 12px 14px;
+      background: var(--panel-2);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    td {
+      padding: 13px 14px;
+      border-top: 1px solid rgba(45, 56, 65, 0.75);
+      vertical-align: top;
+    }
+    td.details { color: #c6d1d8; max-width: 420px; overflow-wrap: anywhere; }
+
+    .result {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 760;
+      text-transform: uppercase;
+    }
+    .result.ok { color: var(--green); background: rgba(102, 209, 126, 0.12); }
+    .result.fail { color: var(--red); background: rgba(244, 112, 103, 0.12); }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric {
+      padding: 13px;
+      background: #12191f;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 0;
+    }
+    .metric .label { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+    .metric .number { margin-top: 5px; font-size: 24px; font-weight: 800; }
+
+    .token-split { justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+    .bar {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #27323a;
+      margin-bottom: 14px;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      transition: width 220ms ease;
+    }
+    #input-tokens-bar { background: var(--blue); }
+    #output-tokens-bar { background: var(--cyan); }
+
+    .config-list { display: grid; gap: 10px; }
+    .config-item {
+      padding: 12px;
+      background: #12191f;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 0;
+    }
+    .config-item p:last-child {
+      margin-top: 5px;
+      color: #dbe6eb;
+      overflow-wrap: anywhere;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px) {
+      header { align-items: flex-start; flex-direction: column; }
+      .header-stats { justify-content: flex-start; }
+      main { height: auto; min-height: calc(100vh - 120px); grid-template-columns: 1fr; overflow: visible; }
+      .column.left, .column.right { grid-template-rows: auto; }
+      .panel { min-height: 320px; }
+      .timeline { height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">LM</div>
+      <div>
+        <h1>Agent Dashboard</h1>
+        <p id="status-badge" class="status subtle"><span class="dot"></span>Disconnected</p>
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="header-metric">
+        <p class="subtle">Session</p>
+        <p id="session-id" class="value mono">N/A</p>
+      </div>
+      <div class="header-metric">
+        <p class="subtle">Total tokens</p>
+        <p id="total-tokens" class="value mono">0</p>
+      </div>
+      <div class="header-metric">
+        <p class="subtle">Tool calls</p>
+        <p id="tool-call-count" class="value mono">0</p>
+      </div>
+      <div class="header-metric">
+        <p class="subtle">Success rate</p>
+        <p id="success-rate" class="value mono">0%</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="column left">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Orchestration Trail</h2>
+          <div class="toolbar">
+            <span id="current-phase-pill" class="pill">Idle</span>
+            <button id="clear-trail" title="Clear orchestration trail">Clear</button>
+          </div>
+        </div>
+        <div class="phase-card">
+          <div>
+            <p id="current-phase" class="phase-name">Idle</p>
+            <p id="phase-subtitle" class="phase-meta subtle">Waiting for CLI telemetry</p>
+          </div>
+          <span id="active-run" class="pill mono">No active run</span>
+        </div>
+        <div id="trail-container" class="timeline scroll">
+          <div class="empty">Start the CLI and send a prompt to populate the live orchestration trail.</div>
+        </div>
+      </div>
+
+      <div class="panel scroll">
+        <div class="panel-header">
+          <h2>Action Trail</h2>
+          <span id="action-summary" class="pill">No actions</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Tool</th>
+              <th>Details</th>
+              <th>Result</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="action-body">
+            <tr id="empty-action-row"><td colspan="4" class="subtle">Tool calls and approvals will appear here.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="column right">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Token Details</h2>
+          <span id="usage-model" class="pill mono">No model</span>
+        </div>
+        <div class="panel-body">
+          <div class="token-split">
+            <span class="subtle">Input tokens</span>
+            <span id="input-tokens-val" class="mono">0</span>
+          </div>
+          <div class="bar"><span id="input-tokens-bar"></span></div>
+          <div class="token-split">
+            <span class="subtle">Output tokens</span>
+            <span id="output-tokens-val" class="mono">0</span>
+          </div>
+          <div class="bar"><span id="output-tokens-bar"></span></div>
+          <div class="metric-grid">
+            <div class="metric">
+              <p class="label">Prompt share</p>
+              <p id="prompt-share" class="number mono">0%</p>
+            </div>
+            <div class="metric">
+              <p class="label">Completion share</p>
+              <p id="completion-share" class="number mono">0%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h2>Agent Overview</h2></div>
+        <div class="panel-body metric-grid">
+          <div class="metric">
+            <p class="label">Runs</p>
+            <p id="total-rounds" class="number mono">0</p>
+          </div>
+          <div class="metric">
+            <p class="label">Avg duration</p>
+            <p id="avg-duration" class="number mono">0s</p>
+          </div>
+          <div class="metric">
+            <p class="label">Approved</p>
+            <p id="approved-count" class="number mono">0</p>
+          </div>
+          <div class="metric">
+            <p class="label">Denied</p>
+            <p id="denied-count" class="number mono">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h2>Active Configuration</h2></div>
+        <div class="panel-body scroll">
+          <div class="config-list">
+            <div class="config-item">
+              <h3>Active Model</h3>
+              <p id="active-model" class="mono">None selected</p>
+            </div>
+            <div class="config-item">
+              <h3>Workspace</h3>
+              <p id="active-workspace" class="mono">Initializing...</p>
+            </div>
+            <div class="config-item">
+              <h3>Last User Request</h3>
+              <p id="last-request">None</p>
+            </div>
+            <div class="config-item">
+              <h3>Last Assistant Reply</h3>
+              <p id="last-reply">None</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="client.js"></script>
+</body>
+</html>

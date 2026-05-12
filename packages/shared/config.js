@@ -17,7 +17,7 @@ export const MODEL_CONFIG = {
 
 export const RUNTIME_LIMITS = {
   maxToolRounds: 8,
-  maxReadBytes: 100_000,
+  maxReadBytes: 20_000,
   maxCommandOutputBytes: 24_000,
   commandTimeoutMs: 30_000,
   maxToolRecoveryNudges: 2,
@@ -25,6 +25,14 @@ export const RUNTIME_LIMITS = {
 
 export const APPROVAL_POLICY = {
   alwaysConfirmTerminal: true,
+  confirmDestructive: true,
+};
+
+export const TOOL_SAFETY_CLASSES = {
+  SAFE: "safe", // Read-only
+  MUTATING: "mutating", // Writes/updates
+  DESTRUCTIVE: "destructive", // Deletes/moves that overwrite
+  TERMINAL: "terminal", // Shell commands
 };
 
 export const TOOL_CONFIG = {
@@ -33,27 +41,35 @@ export const TOOL_CONFIG = {
     "list_files",
     "read_file",
     "write_file",
+    "append_file",
+    "move_file",
     "make_directory",
     "delete_file",
+    "search_files",
     "run_terminal_command",
+    "git_status",
+    "git_diff",
   ]),
   toolSpec: [
     "You can request local tools inside the active workspace folder.",
-    "If a tool is needed, reply with only a single JSON object and no extra text.",
-    'Schema: {"type":"tool_request","tool":"pwd|list_files|read_file|write_file|make_directory|delete_file|run_terminal_command","path":"optional relative path","content":"required for write_file","command":"required for run_terminal_command"}',
+    "If a tool is needed, reply with only a single JSON object and NO extra text.",
+    'Example: {"type":"tool_request","tool":"list_files","path":"src"}',
+    "Available Tools:",
+    "- pwd(): Current workspace path.",
+    "- list_files(path): List files in a directory.",
+    "- read_file(path): Read a file's content.",
+    "- write_file(path, content): Create or overwrite a file.",
+    "- append_file(path, content): Append text to a file.",
+    "- move_file(from, to, overwrite?): Move/rename a file.",
+    "- make_directory(path): Create a directory.",
+    "- delete_file(path): Delete a file.",
+    "- search_files(query, path?): Search for text in files.",
+    "- run_terminal_command(command): Run a shell command.",
+    "- git_status(): Current git status.",
+    "- git_diff(path?): Show git differences.",
     "Rules:",
-    "- Paths must be relative to the active workspace.",
-    "- Use pwd to learn the active workspace path.",
-    "- Use list_files to inspect a directory.",
-    "- Use read_file to inspect a file before editing it when accuracy matters.",
-    "- Use write_file to create or overwrite a file.",
-    "- Use make_directory to create a directory.",
-    "- Use delete_file to remove a file.",
-    "- Use delete_file to remove a file.",
-    "- Use run_terminal_command when a shell command is the best tool for the task.",
-    "- When using run_terminal_command, provide the exact command string in the command field.",
-    "- After receiving a tool result, continue the task using that result.",
-    "- If no tool is needed, answer normally.",
+    "- All paths must be RELATIVE to the workspace.",
+    "- Do not include any text before or after the JSON.",
   ].join("\n"),
 };
 
@@ -73,7 +89,6 @@ export const ERROR_CODES = {
   CANCELLATION: "CANCELLATION",
 };
 
-// Logger levels
 export const LOG_LEVELS = {
   DEBUG: 0,
   INFO: 1,

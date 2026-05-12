@@ -3,13 +3,14 @@
 import process from "node:process";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { runAgentTurn } from "./agent.js";
-import { getClient } from "./client.js";
+import { runAgentTurn } from "../../packages/agent-core/index.js";
+import { getClient } from "../../packages/llm-client/index.js";
 import { handleCommand } from "./commands.js";
-import { MODEL_CONFIG } from "./config.js";
-import { resolveLaunchDirectory } from "./path-utils.js";
+import { MODEL_CONFIG } from "../../packages/shared/config.js";
+import { resolveLaunchDirectory } from "../../packages/shared/path-utils.js";
 import { paint, ANSI, printBanner, printError, printInfo } from "./ui.js";
-import { logger } from "./logger.js";
+import { logger } from "../../packages/shared/logger.js";
+import { telemetry } from "../../packages/shared/telemetry.js";
 
 async function main() {
   try {
@@ -31,6 +32,12 @@ async function main() {
     currentRun: null,
     workspaceMemoryRef: null,
   };
+
+  telemetry.emit("SESSION_INIT", {
+    model: state.model,
+    cwd: state.cwd,
+    baseUrl: state.baseUrl,
+  });
 
   const client = getClient(state.baseUrl);
   const rl = readline.createInterface({ input, output, terminal: Boolean(input.isTTY && output.isTTY) });

@@ -1,28 +1,42 @@
 # LM Studio Agent CLI
 
-`lms-cli` is a minimal terminal agent for LM Studio's OpenAI-compatible local server. It gives you an interactive chat UI, lets the model inspect or modify files in a workspace, and asks for approval before every tool call.
+`lms-cli` is a fully local AI-powered coding assistant that uses LM Studio's OpenAI-compatible API to create an autonomous terminal-based coding agent. It provides both a command-line interface and a web dashboard for interacting with locally hosted LLMs.
 
-This project is especially useful when you want a local coding assistant that can:
+This project turns locally hosted LLMs into autonomous software engineering agents capable of:
 
-- chat in the terminal
-- inspect files in the current workspace
-- create, update, and delete files inside that workspace
-- run terminal commands after explicit approval
-- auto-select a loaded LM Studio model if you do not choose one up front
+- understanding and navigating repositories
+- editing code with precision
+- executing terminal commands
+- performing multi-step reasoning and planning
+- using a comprehensive tool system
+- retrieving project context
+- managing workspace memory
+- autonomously solving development tasks
 
-## What The CLI Does
+## Architecture
+
+This is a modular monorepo with the following structure:
+
+- **`apps/cli/`** - Terminal-based chat interface
+- **`apps/dashboard/`** - Web-based dashboard with telemetry and monitoring
+- **`packages/agent-core/`** - Core agent orchestration and reasoning loop
+- **`packages/llm-client/`** - LM Studio API client with streaming support
+- **`packages/tool-runtime/`** - Tool execution system and registry
+- **`packages/shared/`** - Common utilities (config, logging, telemetry, path utils)
+
+## What The Agent Does
 
 When you start `lms-cli`, it opens an interactive session tied to one active workspace directory.
 
-Inside a session, the model can request these tools:
+Inside a session, the agent can request these tools:
 
-- `pwd`
-- `list_files`
-- `read_file`
-- `write_file`
-- `make_directory`
-- `delete_file`
-- `run_terminal_command`
+- `pwd` - Show current working directory
+- `list_files` - List directory contents
+- `read_file` - Read file contents
+- `write_file` - Create or update files
+- `make_directory` - Create directories
+- `delete_file` - Remove files
+- `run_terminal_command` - Execute shell commands
 
 Every tool request is shown in the terminal and requires your approval before it runs.
 
@@ -30,321 +44,18 @@ Every tool request is shown in the terminal and requires your approval before it
 
 - Node.js 18+
 - LM Studio running locally
-- LM Studio local server enabled, usually at `http://127.0.0.1:1234/v1`
-- At least one loaded model in LM Studio if you want auto-selection to work
+- LM Studio local server enabled (usually at `http://127.0.0.1:1234/v1`)
+- At least one loaded model in LM Studio
 
-## Install
-
-### Run From This Repository
-
-If you are working directly from this project folder, you can start the CLI without installing it globally:
-
-```powershell
-node src/index.js
-```
-
-Or:
-
-```powershell
-npm start
-```
+## Installation
 
 ### Install Globally
 
-To make the `lms-cli` command available everywhere on your machine from this source checkout:
+To make the `lms-cli` command available everywhere on your machine:
 
 ```powershell
-cmd /c npm install -g .
+npm install -g .
 ```
-
-If PowerShell blocks `npm.ps1`, keep using `cmd /c npm ...` as shown above.
-
-After that, you can run:
-
-```powershell
-lms-cli
-```
-
-from any directory.
-
-## Quick Start
-
-1. Start LM Studio.
-2. Enable the local server.
-3. Load a model in LM Studio.
-4. Start `lms-cli` in the folder you want to use as the workspace.
-5. Ask for help, edits, inspection, or commands.
-6. Approve or deny tool requests as they appear.
-
-## Working With `lms-cli` Inside A Directory
-
-This is the project-scoped workflow. You first move into a directory, then start the CLI there.
-
-### When To Use This Mode
-
-Use this when:
-
-- you are already inside the project you want the assistant to work on
-- you want the current shell directory to become the workspace
-- you want all relative file operations scoped to the folder you are standing in
-
-### How It Works
-
-If you launch `lms-cli` with no path argument, the active workspace becomes your shell's current working directory.
-
-That means this:
-
-```powershell
-cd C:\path\to\my-project
-lms-cli
-```
-
-is equivalent to telling the CLI:
-
-- use `C:\path\to\my-project` as the workspace
-- run file tools relative to that workspace
-- run terminal commands from that workspace
-
-At startup, the banner shows:
-
-- the active workspace
-- the LM Studio endpoint
-- the selected model, or that model auto-selection will happen on first prompt
-
-### Typical Inside-A-Directory Workflow
-
-```powershell
-cd C:\Users\amrit\Desktop\Work\Projects\my-app
-lms-cli
-```
-
-Then ask things like:
-
-- "Show me the files in this project."
-- "Read `package.json` and explain the scripts."
-- "Create a `README.md` for this app."
-- "Update `src/index.js` to log a startup message."
-
-Because the workspace is your current directory, file paths should be thought of as relative to that folder.
-
-For example, if your workspace is:
-
-```text
-C:\Users\amrit\Desktop\Work\Projects\my-app
-```
-
-then:
-
-- `src/index.js` is allowed
-- `README.md` is allowed
-- `..\another-project\file.txt` is rejected because it is outside the active workspace
-
-### Why This Mode Is Good
-
-This is usually the safest and simplest way to work because:
-
-- the workspace is obvious
-- project-relative paths feel natural
-- file tools are constrained to the folder you intentionally entered
-
-## Working With `lms-cli` Globally
-
-This is the machine-wide workflow. You install the command once, then use it anywhere.
-
-### When To Use This Mode
-
-Use this when:
-
-- you want `lms-cli` available in every terminal
-- you switch between multiple projects often
-- you do not want to start the CLI with `node src/index.js` from the repo each time
-
-### What "Global" Means Here
-
-Global installation does not mean the assistant gets global filesystem access.
-
-It only means:
-
-- the `lms-cli` command is available system-wide
-- you can launch it from any folder
-- you can optionally pass a target directory to choose the workspace
-
-The actual workspace is still determined per session.
-
-### Global Usage Pattern 1: Launch In The Current Directory
-
-If you are already inside the folder you want:
-
-```powershell
-cd C:\path\to\project-a
-lms-cli
-```
-
-The current directory becomes the workspace for that session.
-
-### Global Usage Pattern 2: Launch Against Another Directory
-
-If you are somewhere else but want to target a specific folder:
-
-```powershell
-lms-cli C:\path\to\project-a
-```
-
-The CLI resolves that path, changes into it, and uses it as the workspace.
-
-This is useful when:
-
-- your shell is currently in a different folder
-- you want a shortcut or script that always opens the same workspace
-- you want to operate on a project without manually `cd`-ing first
-
-### Example Global Workflows
-
-Start in the current folder:
-
-```powershell
-cd C:\repos\api-service
-lms-cli
-```
-
-Start in another folder without changing your shell first:
-
-```powershell
-lms-cli C:\repos\web-client
-```
-
-Start in the current folder using the local source checkout instead of a global install:
-
-```powershell
-node C:\Users\amrit\Desktop\Work\Projects\LM-Studio-CLI\src\index.js C:\repos\tooling
-```
-
-## Workspace Rules
-
-The workspace is the most important concept in `lms-cli`.
-
-### File Tools
-
-The dedicated file tools are restricted to the active workspace folder:
-
-- `list_files`
-- `read_file`
-- `write_file`
-- `make_directory`
-- `delete_file`
-
-These tools reject paths outside the workspace.
-
-### Terminal Commands
-
-Terminal commands are started from the active workspace directory, but shell commands are more powerful than the dedicated file tools.
-
-That means:
-
-- the command runs with the workspace as its current directory
-- you still have to approve it before it runs
-- the command may affect locations outside the workspace if the shell command itself does that
-
-Be more cautious approving `run_terminal_command` than simple file reads or writes.
-
-## Session Commands
-
-Use these slash commands during an interactive session:
-
-- `/help` - show help
-- `/models` - list models returned by LM Studio
-- `/model <id>` - set the active model
-- `/system <prompt>` - replace the system prompt
-- `/pwd` - show the active workspace
-- `/clear` - clear chat history
-- `/exit` or `/quit` - leave the session
-
-## Environment Variables
-
-You can configure the CLI before launch with environment variables:
-
-```powershell
-$env:LM_STUDIO_BASE_URL="http://127.0.0.1:1234/v1"
-$env:LM_STUDIO_MODEL="your-loaded-model-id"
-$env:LM_STUDIO_SYSTEM_PROMPT="You are a concise coding assistant."
-$env:LM_STUDIO_TEMPERATURE="0.2"
-lms-cli
-```
-
-### Supported Variables
-
-- `LM_STUDIO_BASE_URL` - LM Studio server URL
-- `LM_STUDIO_MODEL` - preferred model id
-- `LM_STUDIO_SYSTEM_PROMPT` - startup system prompt
-- `LM_STUDIO_TEMPERATURE` - sampling temperature
-
-If no model is specified, the CLI queries `/models` and uses the first available model.
-
-## Practical Usage Tips
-
-### For Project Work
-
-Use the inside-a-directory workflow when you are actively editing one codebase:
-
-```powershell
-cd C:\repos\my-app
-lms-cli
-```
-
-This keeps the mental model simple and makes relative paths easy.
-
-### For Multi-Project Work
-
-Use the global workflow when you bounce between repos:
-
-```powershell
-lms-cli C:\repos\project-one
-lms-cli C:\repos\project-two
-```
-
-This lets you keep one command and point it at different workspaces as needed.
-
-### For Safer Approvals
-
-Before approving a tool call, check:
-
-- which file path it wants
-- whether that path is inside the expected project
-- whether a terminal command is doing more than necessary
-
-## Troubleshooting
-
-### `lms-cli` Is Not Found
-
-If the command is not available:
-
-- run from the repo with `node src/index.js`
-- or install it globally with `cmd /c npm install -g .`
-
-### LM Studio Connection Errors
-
-If startup or chat fails:
-
-- make sure LM Studio is running
-- make sure the local server is enabled
-- make sure the base URL matches your LM Studio setup
-
-Example:
-
-```powershell
-$env:LM_STUDIO_BASE_URL="http://127.0.0.1:1234/v1"
-lms-cli
-```
-
-### No Models Returned
-
-If `/models` returns nothing or the first prompt fails model selection:
-
-- load a model in LM Studio first
-- or set `LM_STUDIO_MODEL` manually
-- or use `/model <id>` during the session
-
-### PowerShell Blocks `npm`
 
 If PowerShell blocks `npm.ps1`, use:
 
@@ -352,13 +63,170 @@ If PowerShell blocks `npm.ps1`, use:
 cmd /c npm install -g .
 ```
 
-## Summary
+### Run From Source
 
-Use `lms-cli` inside a directory when you want the current folder to become the workspace immediately.
+If you are working directly from this project folder:
 
-Use `lms-cli` globally when you want one command available everywhere and the flexibility to either:
+```powershell
+npm install
+npm start
+```
 
-- launch in the current folder with `lms-cli`
-- or target a folder directly with `lms-cli C:\path\to\project`
+## Quick Start
 
-In both cases, the active workspace is what defines where the agent reads and writes files.
+1. Start LM Studio and enable the local server
+2. Load a model in LM Studio
+3. Start `lms-cli` in the folder you want to use as the workspace:
+
+```powershell
+cd C:\path\to\your\project
+lms-cli
+```
+
+4. Ask for help, edits, inspection, or commands
+5. Approve or deny tool requests as they appear
+
+## Dashboard
+
+The project includes a web dashboard for monitoring agent activity:
+
+```powershell
+npm run dashboard
+```
+
+Then open `http://localhost:3001` in your browser to see:
+- Real-time telemetry
+- Session history
+- Tool usage statistics
+- Agent performance metrics
+
+## Working With `lms-cli`
+
+### Project-Scoped Workflow
+
+Use this when you are already inside the project you want the assistant to work on:
+
+```powershell
+cd C:\path\to\my-project
+lms-cli
+```
+
+The current directory becomes the workspace for that session.
+
+### Global Workflow
+
+If installed globally, you can launch from anywhere:
+
+```powershell
+lms-cli C:\path\to\project
+```
+
+This lets you target specific folders without changing your shell directory first.
+
+## Session Commands
+
+Use these slash commands during an interactive session:
+
+- `/help` - Show help
+- `/models` - List available models from LM Studio
+- `/model <id>` - Switch to a different model
+- `/system <prompt>` - Update the system prompt
+- `/pwd` - Show the active workspace
+- `/clear` - Clear chat history
+- `/exit` or `/quit` - Leave the session
+
+## Environment Variables
+
+Configure the CLI with environment variables:
+
+```powershell
+$env:LM_STUDIO_BASE_URL="http://127.0.0.1:1234/v1"
+$env:LM_STUDIO_MODEL="your-loaded-model-id"
+$env:LM_STUDIO_SYSTEM_PROMPT="You are a helpful coding assistant."
+$env:LM_STUDIO_TEMPERATURE="0.2"
+lms-cli
+```
+
+### Supported Variables
+
+- `LM_STUDIO_BASE_URL` - LM Studio server URL
+- `LM_STUDIO_MODEL` - Preferred model ID
+- `LM_STUDIO_SYSTEM_PROMPT` - System prompt
+- `LM_STUDIO_TEMPERATURE` - Sampling temperature
+- `LMS_DASHBOARD_PORT` - Dashboard port (default: 3001)
+
+## Workspace Rules
+
+The workspace defines where the agent can read and write files.
+
+### File Tools
+
+File operations are restricted to the active workspace:
+- `list_files`
+- `read_file`
+- `write_file`
+- `make_directory`
+- `delete_file`
+
+Paths outside the workspace are rejected.
+
+### Terminal Commands
+
+Terminal commands run from the workspace directory but can affect the broader system. Be cautious when approving `run_terminal_command` requests.
+
+## Development
+
+This is a monorepo using npm workspaces. To work on the codebase:
+
+```powershell
+npm install
+```
+
+Run the CLI:
+```powershell
+npm start
+```
+
+Run the dashboard:
+```powershell
+npm run dashboard
+```
+
+## Troubleshooting
+
+### `lms-cli` Is Not Found
+
+- Run from source with `npm start`
+- Or install globally with `npm install -g .`
+
+### LM Studio Connection Errors
+
+- Ensure LM Studio is running
+- Verify the local server is enabled
+- Check the base URL matches your LM Studio setup
+
+### No Models Available
+
+- Load a model in LM Studio first
+- Or set `LM_STUDIO_MODEL` manually
+- Use `/model <id>` during the session
+
+### PowerShell Blocks npm
+
+Use `cmd /c npm install -g .` instead.
+
+## Roadmap
+
+This project is in active development with planned features including:
+
+- Streaming responses for real-time interaction
+- Structured outputs and improved tool calling
+- Embeddings and RAG for better context awareness
+- Advanced planning and multi-step reasoning
+- Code intelligence and AST parsing
+- Git integration tools
+- MCP (Model Context Protocol) support
+- Enhanced security and sandboxing
+- TypeScript migration
+- Multi-model provider support
+
