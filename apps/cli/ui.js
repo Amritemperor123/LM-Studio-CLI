@@ -27,27 +27,92 @@ export function printError(message) {
   output.write(`${paint(ANSI.red, "error")}: ${message}\n`);
 }
 
+export function printThinking() {
+  output.write(`${paint(ANSI.dim, "thinking...")}\r`);
+}
+
+export function clearThinking() {
+  // Clear the "thinking..." line
+  if (output.isTTY) {
+    output.clearLine(0);
+    output.cursorTo(0);
+  }
+}
+
+export function printInputTop() {
+  const width = output.columns || 80;
+  output.write(paint(ANSI.dim, `╭─ User Input ${"─".repeat(width - 15)}╮\n`));
+}
+
+export function printInputBottom() {
+  const width = output.columns || 80;
+  output.write(paint(ANSI.dim, `╰${"─".repeat(width - 2)}╯\n`));
+}
+
 export function printUser(message) {
-  output.write(`${paint(ANSI.green, "you")}: ${message}\n`);
+  // We no longer print "you: message" right after input to avoid repetition
+  // but keep the function if we need to reprint history later
+  // output.write(`${paint(ANSI.green, "you")}: ${message}\n`);
 }
 
 export function printAssistantLabel() {
   output.write(`${paint(ANSI.magenta, "assistant")}: `);
 }
 
+let isInsideCodeBlock = false;
+
+export function renderMarkdown(text) {
+  if (!text) return "";
+
+  let rendered = text;
+
+  // Code blocks (triple backticks)
+  rendered = rendered.replace(/```([\s\S]*?)```/g, (match, code) => {
+    return `${ANSI.green}${code}${ANSI.reset}`;
+  });
+
+  // Inline code (single backticks)
+  rendered = rendered.replace(/`([^`]+)`/g, (match, code) => {
+    return `${ANSI.yellow}${code}${ANSI.reset}`;
+  });
+
+  // Bold (**text**)
+  rendered = rendered.replace(/\*\*([^*]+)\*\*/g, (match, bold) => {
+    return `${ANSI.bold}${bold}${ANSI.reset}`;
+  });
+
+  return rendered;
+}
+
 export function printToken(token) {
-  output.write(token);
+  let outputToken = token;
+
+  // Simple stateful tracking for code blocks during streaming
+  if (token.includes("```")) {
+    const parts = token.split("```");
+    for (let i = 0; i < parts.length - 1; i++) {
+      isInsideCodeBlock = !isInsideCodeBlock;
+      // We don't want to print the backticks themselves in color if they are toggles
+      // but for simplicity, let's just toggle state
+    }
+  }
+
+  if (isInsideCodeBlock) {
+    outputToken = `${ANSI.green}${token}${ANSI.reset}`;
+  }
+
+  output.write(outputToken);
 }
 
 export function printAssistant(message) {
-  // If message is provided, print label + message + newline
-  // If not, it assumes tokens were already printed
   if (message) {
     printAssistantLabel();
-    output.write(`${message}\n\n`);
+    output.write(`${renderMarkdown(message)}\n\n`);
   } else {
     output.write("\n\n");
   }
+  // Reset code block state after full message
+  isInsideCodeBlock = false;
 }
 
 export function printBanner(state) {

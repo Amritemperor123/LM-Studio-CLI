@@ -10,7 +10,16 @@ import {
   responseNeedsRecovery,
   userRequestLikelyNeedsMutation,
 } from "./prompting.js";
-import { askPermission, printAssistant, printAssistantLabel, printInfo, printToken, printUser } from "../../apps/cli/ui.js";
+import {
+  askPermission,
+  printAssistant,
+  printAssistantLabel,
+  printInfo,
+  printToken,
+  printUser,
+  printThinking,
+  clearThinking,
+} from "../../apps/cli/ui.js";
 import { parseToolRequest } from "../tool-runtime/protocol.js";
 import { formatToolFallback, runToolRequest, TOOL_REGISTRY } from "../tool-runtime/index.js";
 import { logger } from "../shared/logger.js";
@@ -19,8 +28,7 @@ import { randomUUID } from "node:crypto";
 
 export async function runAgentTurn(line, state, client, rl) {
   await ensureSelectedModel(state, client);
-  printUser(line);
-
+  
   state.currentRun = {
     id: randomUUID?.() ?? Math.random().toString(36).slice(2),
     userRequest: line,
@@ -71,6 +79,8 @@ export async function runAgentTurn(line, state, client, rl) {
         let isPotentialToolRequest = false;
         let hasDecisionBeenMade = false;
 
+        printThinking();
+
         for await (const token of client.chatStream({
           model: state.model,
           messages,
@@ -94,6 +104,7 @@ export async function runAgentTurn(line, state, client, rl) {
                 // Keep buffering
               } else {
                 // Not a tool request starting immediately, flush buffer
+                clearThinking();
                 printAssistantLabel();
                 printToken(streamingBuffer);
                 hasDecisionBeenMade = true;
@@ -109,6 +120,7 @@ export async function runAgentTurn(line, state, client, rl) {
         if (isPotentialToolRequest && !hasDecisionBeenMade) {
           const toolRequest = parseToolRequest(reply);
           if (!toolRequest) {
+            clearThinking();
             printAssistantLabel();
             printToken(streamingBuffer);
             hasStreamedInRound = true;
@@ -116,10 +128,13 @@ export async function runAgentTurn(line, state, client, rl) {
           }
         }
 
+        clearThinking();
+
         if (hasStreamedInRound) {
           process.stdout.write("\n");
         }
       } catch (error) {
+        clearThinking();
         logger.error("Streaming failed, falling back to non-streaming chat", error);
         const result = await client.chat({
           model: state.model,

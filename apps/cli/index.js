@@ -8,7 +8,7 @@ import { getClient } from "../../packages/llm-client/index.js";
 import { handleCommand } from "./commands.js";
 import { MODEL_CONFIG } from "../../packages/shared/config.js";
 import { resolveLaunchDirectory } from "../../packages/shared/path-utils.js";
-import { paint, ANSI, printBanner, printError, printInfo } from "./ui.js";
+import { paint, ANSI, printBanner, printError, printInfo, printInputTop, printInputBottom } from "./ui.js";
 import { logger } from "../../packages/shared/logger.js";
 import { telemetry } from "../../packages/shared/telemetry.js";
 
@@ -40,7 +40,25 @@ async function main() {
   });
 
   const client = getClient(state.baseUrl);
-  const rl = readline.createInterface({ input, output, terminal: Boolean(input.isTTY && output.isTTY) });
+  
+  const commands = [
+    "/help", "/models", "/load", "/unload", "/model", 
+    "/system", "/pwd", "/stop", "/clear", "/exit", "/quit"
+  ];
+
+  const completer = (line) => {
+    const completions = commands;
+    const hits = completions.filter((c) => c.startsWith(line));
+    // Show all completions if none found
+    return [hits.length ? hits : completions, line];
+  };
+
+  const rl = readline.createInterface({ 
+    input, 
+    output, 
+    terminal: Boolean(input.isTTY && output.isTTY),
+    completer
+  });
 
   process.on("SIGINT", () => {
     output.write("\n");
@@ -52,10 +70,30 @@ async function main() {
   logger.debug("Session started.");
 
   while (true) {
-    let line;
+    let line = "";
+    let lines = [];
+
+    const side = paint(ANSI.dim, "│");
+    printInputTop();
 
     try {
-      line = (await rl.question(paint(ANSI.bold, "> "))).trim();
+      while (true) {
+        const prompt = lines.length === 0 
+          ? `${side} ${paint(ANSI.bold, "> ")}` 
+          : `${side} ${paint(ANSI.dim, "... ")}`;
+          
+        const inputLine = await rl.question(prompt);
+        
+        if (inputLine.trimEnd().endsWith("\\")) {
+          lines.push(inputLine.trimEnd().slice(0, -1));
+          continue;
+        } else {
+          lines.push(inputLine);
+          break;
+        }
+      }
+      printInputBottom();
+      line = lines.join("\n").trim();
     } catch (error) {
       if (error.message === "readline was closed") {
         break;
