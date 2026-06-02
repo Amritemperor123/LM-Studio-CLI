@@ -19,8 +19,15 @@ export const TOOL_REGISTRY = {
   delete_file: { safety: TOOL_SAFETY_CLASSES.DESTRUCTIVE },
   search_files: { safety: TOOL_SAFETY_CLASSES.SAFE },
   run_terminal_command: { safety: TOOL_SAFETY_CLASSES.TERMINAL },
+  list_processes: { safety: TOOL_SAFETY_CLASSES.SAFE },
+  stop_process: { safety: TOOL_SAFETY_CLASSES.MUTATING },
   git_status: { safety: TOOL_SAFETY_CLASSES.SAFE },
   git_diff: { safety: TOOL_SAFETY_CLASSES.SAFE },
+  git_commit: { safety: TOOL_SAFETY_CLASSES.MUTATING },
+  git_log: { safety: TOOL_SAFETY_CLASSES.SAFE },
+  git_checkout: { safety: TOOL_SAFETY_CLASSES.MUTATING },
+  git_branch: { safety: TOOL_SAFETY_CLASSES.MUTATING },
+  delegate_task: { safety: TOOL_SAFETY_CLASSES.SAFE },
 };
 
 function trimToolOutput(value, maxBytes = RUNTIME_LIMITS.maxCommandOutputBytes) {
@@ -49,21 +56,47 @@ function getShellInvocation(command) {
   };
 }
 
-async function runGrep(state, query, targetPath) {
-  const shell = getShellInvocation(`grep -rIn "${query.replace(/"/g, '\\"')}" "${targetPath}"`);
-  try {
-    const { stdout, stderr } = await execFileAsync(shell.file, shell.args, {
-      cwd: state.cwd,
-      timeout: RUNTIME_LIMITS.commandTimeoutMs,
-      windowsHide: true,
-    });
-    return stdout || stderr || "No matches found.";
-  } catch (error) {
-    if (error.code === 1 && !error.stdout && !error.stderr) {
-      return "No matches found.";
+async function nativeSearch(state, query, targetPath) {
+  const matches = [];
+  const maxMatches = 50;
+
+  async function walk(dir) {
+    if (matches.length >= maxMatches) return;
+
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch (e) {
+      return;
     }
-    throw error;
+
+    for (const entry of entries) {
+      if (matches.length >= maxMatches) break;
+      const fullPath = path.join(dir, entry.name);
+      const relativePath = path.relative(state.cwd, fullPath);
+
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name === ".git") continue;
+        await walk(fullPath);
+      } else if (entry.isFile()) {
+        try {
+          const content = await fs.readFile(fullPath, "utf8");
+          const lines = content.split("\n");
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes(query)) {
+              matches.push(`${relativePath}:${i + 1}: ${lines[i].trim().slice(0, 100)}`);
+              if (matches.length >= maxMatches) break;
+            }
+          }
+        } catch (e) {
+          // Skip binary files or unreadable files
+        }
+      }
+    }
   }
+
+  await walk(targetPath);
+  return matches.length > 0 ? matches.join("\n") : "No matches found.";
 }
 
 export async function runToolRequest(state, request) {
@@ -177,7 +210,7 @@ export async function runToolRequest(state, request) {
       }
       case "search_files": {
         if (typeof request.query !== "string") throw new Error("search_files requires query.");
-        const output = await runGrep(state, request.query, targetPath);
+        const output = await nativeSearch(state, request.query, targetPath);
         return {
           ok: true,
           type: RESULT_TYPES.TOOL,
@@ -205,13 +238,76 @@ export async function runToolRequest(state, request) {
           data: stdout || "No differences.",
         };
       }
+      case "git_commit": {
+        if (typeof request.message !== "string") throw new Error("git_commit requires a message.");
+        const shell = getShellInvocation(`git commit -m "${request.message.replace(/"/g, '\\"')}"`);
+        const { stdout, stderr } = await execFileAsync(shell.file, shell.args, { cwd: state.cwd });
+        return {
+          ok: true,
+          type: RESULT_TYPES.TOOL,
+          tool: "git_commit",
+          data: stdout || stderr || "Committed changes.",
+        };
+      }
+      case "git_log": {
+        const limit = request.limit ? Number.parseInt(request.limit) : 5;
+        const shell = getShellInvocation(`git log -n ${limit} --oneline`);
+        const { stdout } = await execFileAsync(shell.file, shell.args, { cwd: state.cwd });
+        return {
+          ok: true,
+          type: RESULT_TYPES.TOOL,
+          tool: "git_log",
+          data: stdout || "No commit history.",
+        };
+      }
+      case "git_checkout": {
+        if (typeof request.branch !== "string") throw new Error("git_checkout requires a branch name.");
+        const shell = getShellInvocation(`git checkout ${request.branch}`);
+        const { stdout, stderr } = await execFileAsync(shell.file, shell.args, { cwd: state.cwd });
+        return {
+          ok: true,
+          type: RESULT_TYPES.TOOL,
+          tool: "git_checkout",
+          data: stdout || stderr || `Switched to ${request.branch}.`,
+        };
+      }
+      case "git_branch": {
+        let cmd = "git branch";
+        if (request.delete) {
+          cmd = `git branch -D ${request.name}`;
+        } else if (request.name) {
+          cmd = `git branch ${request.name}`;
+        }
+        const shell = getShellInvocation(cmd);
+        const { stdout, stderr } = await execFileAsync(shell.file, shell.args, { cwd: state.cwd });
+        return {
+          ok: true,
+          type: RESULT_TYPES.TOOL,
+          tool: "git_branch",
+          data: stdout || stderr || "Operation successful.",
+        };
+      }
+      case "delegate_task": {
+        if (typeof request.role !== "string" || typeof request.task !== "string") {
+          throw new Error("delegate_task requires role and task.");
+        }
+        return {
+          ok: true,
+          type: RESULT_TYPES.TOOL,
+          tool: "delegate_task",
+          role: request.role,
+          task: request.task,
+          data: `Task delegated to ${request.role}: ${request.task}`,
+        };
+      }
       case "run_terminal_command": {
         if (typeof request.command !== "string" || !request.command.trim()) {
           throw new Error("run_terminal_command requires a non-empty command string.");
         }
 
         const shell = getShellInvocation(request.command);
-        
+        const isBackground = !!request.background;
+
         return new Promise((resolve) => {
           let stdout = "";
           let stderr = "";
@@ -220,7 +316,45 @@ export async function runToolRequest(state, request) {
           const child = spawn(shell.file, shell.args, {
             cwd: state.cwd,
             windowsHide: true,
+            detached: isBackground,
           });
+
+          if (isBackground) {
+            if (!state.processes) state.processes = new Map();
+            const procEntry = {
+              pid: child.pid,
+              command: request.command,
+              startedAt: new Date(),
+              process: child,
+              stdout: "",
+              stderr: "",
+            };
+            state.processes.set(child.pid, procEntry);
+            
+            child.stdout?.on("data", (data) => {
+              procEntry.stdout = (procEntry.stdout + data.toString()).slice(-1000);
+            });
+            child.stderr?.on("data", (data) => {
+              procEntry.stderr = (procEntry.stderr + data.toString()).slice(-1000);
+            });
+            child.on("close", (code) => {
+              procEntry.exitCode = code;
+              procEntry.status = "exited";
+            });
+
+            if (process.platform !== "win32") {
+              child.unref();
+            }
+
+            resolve({
+              ok: true,
+              type: RESULT_TYPES.TOOL,
+              tool: "run_terminal_command",
+              command: request.command,
+              data: `Started background process with PID: ${child.pid}`,
+            });
+            return;
+          }
 
           if (state.currentRun) {
             state.currentRun.activeProcess = child;
@@ -300,6 +434,37 @@ export async function runToolRequest(state, request) {
           });
         });
       }
+      case "list_processes": {
+        const processes = state.processes ? Array.from(state.processes.values()) : [];
+        const data = processes.length > 0
+          ? processes.map(p => {
+              const status = p.status === "exited" ? `Exited (${p.exitCode})` : "Running";
+              const output = p.stdout || p.stderr ? `\n  Latest Output: ${(p.stdout || p.stderr).trim().slice(-100)}` : "";
+              return `[${p.pid}] ${p.command}\n  Status: ${status} | Started: ${p.startedAt.toISOString()}${output}`;
+            }).join("\n---\n")
+          : "No active background processes.";
+        return {
+          ok: true,
+          type: RESULT_TYPES.TOOL,
+          tool: "list_processes",
+          data,
+        };
+      }
+      case "stop_process": {
+        const pid = Number.parseInt(request.pid);
+        if (Number.isNaN(pid)) throw new Error("stop_process requires a valid PID.");
+        const p = state.processes?.get(pid);
+        if (!p) throw new Error(`No process found with PID: ${pid}`);
+        
+        p.process.kill();
+        state.processes.delete(pid);
+        return {
+          ok: true,
+          type: RESULT_TYPES.TOOL,
+          tool: "stop_process",
+          data: `Process ${pid} stopped.`,
+        };
+      }
       default:
         return {
           ok: false,
@@ -354,10 +519,24 @@ export function formatToolFallback(result) {
       return `Git Status:\n${result.data}`;
     case "git_diff":
       return `Git Diff:\n${result.data}`;
+    case "git_commit":
+      return `Git Commit Output:\n${result.data}`;
+    case "git_log":
+      return `Git Log:\n${result.data}`;
+    case "git_checkout":
+      return `Git Checkout Output:\n${result.data}`;
+    case "git_branch":
+      return `Git Branch Output:\n${result.data}`;
     case "run_terminal_command":
       return result.ok
         ? `Command completed:\n${result.data}`
         : `Command failed:\n${result.error.message}`;
+    case "list_processes":
+      return `Active Processes:\n${result.data}`;
+    case "stop_process":
+      return result.data;
+    case "delegate_task":
+      return `[Sub-Agent: ${result.role}] ${result.data}`;
     default:
       return typeof result.data === "string" ? result.data : "The tool completed successfully.";
   }

@@ -115,7 +115,29 @@ export function describeToolRequest(request) {
     case "delete_file":
       return `Allow the model to delete ${request.path}?`;
     case "run_terminal_command":
-      return `Allow the model to run this terminal command?\n${request.command ?? ""}`;
+      return `Allow the model to run this terminal command?\n${request.command ?? ""}${request.background ? "\n(Background process)" : ""}`;
+    case "list_processes":
+      return "Allow the model to list active background processes?";
+    case "stop_process":
+      return `Allow the model to stop process ${request.pid}?`;
+    case "git_status":
+      return "Allow the model to check git status?";
+    case "git_diff":
+      return `Allow the model to check git diff ${request.path || ""}?`;
+    case "git_commit":
+      return `Allow the model to commit changes with message: ${request.message}?`;
+    case "git_log":
+      return `Allow the model to view git log (limit: ${request.limit || 5})?`;
+    case "git_checkout":
+      return `Allow the model to switch to branch ${request.branch}?`;
+    case "git_branch":
+      return request.delete
+        ? `Allow the model to delete branch ${request.name}?`
+        : request.name
+          ? `Allow the model to create branch ${request.name}?`
+          : "Allow the model to list branches?";
+    case "delegate_task":
+      return `Allow the model to delegate a task to a ${request.role} agent?\nTask: ${request.task}`;
     default:
       return `Allow the model to run ${request.tool}?`;
   }

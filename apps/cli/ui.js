@@ -1,4 +1,6 @@
 import { stdout as output } from "node:process";
+import stripAnsi from "strip-ansi";
+import stringWidth from "string-width";
 
 export const ANSI = {
   reset: "\x1b[0m",
@@ -40,12 +42,12 @@ export function clearThinking() {
 }
 
 export function printInputTop() {
-  const width = output.columns || 80;
+  const width = Math.min(output.columns || 80, 100);
   output.write(paint(ANSI.dim, `╭─ User Input ${"─".repeat(width - 15)}╮\n`));
 }
 
 export function printInputBottom() {
-  const width = output.columns || 80;
+  const width = Math.min(output.columns || 80, 100);
   output.write(paint(ANSI.dim, `╰${"─".repeat(width - 2)}╯\n`));
 }
 
@@ -116,15 +118,15 @@ export function printAssistant(message) {
 }
 
 export function printBanner(state) {
-  const width = output.columns || 80;
-  const innerWidth = width - 4; // Padding and borders
+  const width = Math.min(output.columns || 80, 100);
+  const innerWidth = width - 6;
+  const labelWidth = 14;
 
   const lines = [
     { label: "Workspace", value: state.cwd },
     { label: "Endpoint", value: state.baseUrl },
-    { label: "Info", value: "/models to check availavble models" },
-    { label: "More Info", value: "/load <model> to load a model" },
-    { label: "A Little More Info", value: "/unload to eject all models" },
+    { label: "Model", value: state.model || "None (use /model)" },
+    { label: "Commands", value: "/models /load /unload /help" },
   ];
 
   const top = paint(ANSI.dim, `╭${"─".repeat(width - 2)}╮`);
@@ -135,15 +137,21 @@ export function printBanner(state) {
   output.write(`${top}\n`);
 
   for (const { label, value } of lines) {
-    const labelStr = paint(ANSI.dim, label.padEnd(25));
+    const labelStr = paint(ANSI.dim, `${label}:`.padEnd(labelWidth));
     const content = `${labelStr} ${value}`;
     
-    // Simple truncation if text is too long for the terminal
-    const visibleContent = content.length > innerWidth 
-      ? content.slice(0, innerWidth - 3) + "..."
-      : content.padEnd(innerWidth);
+    const visibleLength = stringWidth(stripAnsi(content));
+    let paddedContent = content;
 
-    output.write(`${side}  ${visibleContent}  ${side}\n`);
+    if (visibleLength > innerWidth) {
+      const valueSpace = innerWidth - labelWidth - 1;
+      const truncatedValue = value.length > valueSpace ? value.slice(0, valueSpace - 3) + "..." : value;
+      paddedContent = `${labelStr} ${truncatedValue.padEnd(valueSpace)}`;
+    } else {
+      paddedContent += " ".repeat(innerWidth - visibleLength);
+    }
+
+    output.write(`${side}  ${paddedContent}  ${side}\n`);
   }
 
   output.write(`${bottom}\n\n`);

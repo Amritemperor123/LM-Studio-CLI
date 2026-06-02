@@ -125,10 +125,13 @@ export async function runAgentTurn(line, state, client, rl) {
             printToken(streamingBuffer);
             hasStreamedInRound = true;
             hasStreamedInTurn = true;
+            hasDecisionBeenMade = true;
           }
         }
 
-        clearThinking();
+        if (!hasDecisionBeenMade) {
+          clearThinking();
+        }
 
         if (hasStreamedInRound) {
           process.stdout.write("\n");
