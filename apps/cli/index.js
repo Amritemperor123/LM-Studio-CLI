@@ -4,6 +4,7 @@ import process from "node:process";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { runAgentTurn } from "../../packages/agent-core/index.js";
+import { loadMemory } from "../../packages/agent-core/memory.js";
 import { getClient } from "../../packages/llm-client/index.js";
 import { handleCommand } from "./commands.js";
 import { MODEL_CONFIG } from "../../packages/shared/config.js";
@@ -30,7 +31,7 @@ async function main() {
     history: [],
     mode: "fast", // Default mode for Stage 0
     currentRun: null,
-    workspaceMemoryRef: null,
+    workspaceMemoryRef: await loadMemory(),
   };
 
   telemetry.emit("SESSION_INIT", {

@@ -22,6 +22,8 @@ import {
 } from "../../apps/cli/ui.js";
 import { parseToolRequest } from "../tool-runtime/protocol.js";
 import { formatToolFallback, runToolRequest, TOOL_REGISTRY } from "../tool-runtime/index.js";
+import { compressContextIfNeeded } from "./context.js";
+import { updateMemoryWithTurn } from "./memory.js";
 import { logger } from "../shared/logger.js";
 import { telemetry } from "../shared/telemetry.js";
 import { randomUUID } from "node:crypto";
@@ -322,6 +324,10 @@ export async function runAgentTurn(line, state, client, rl) {
 
     state.history.push({ role: "user", content: line });
     state.history.push({ role: "assistant", content: finalReply });
+    
+    await compressContextIfNeeded(state, client);
+    await updateMemoryWithTurn(line, finalReply, state.workspaceMemoryRef);
+
     telemetry.emit("RUN_END", {
       runId: state.currentRun.id,
       cancelled: state.currentRun.cancelled,

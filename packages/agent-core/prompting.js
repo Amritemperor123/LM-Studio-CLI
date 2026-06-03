@@ -29,11 +29,15 @@ const INSPECTION_ONLY_REPLY_PATTERNS = [
 ];
 
 export function buildMessages(state, userInput) {
+  const memoryContext = state.workspaceMemoryRef 
+    ? `\nWorkspace Memory: ${JSON.stringify(state.workspaceMemoryRef.sessions.slice(-3))}`
+    : "";
+
   return [
     { role: "system", content: state.systemPrompt },
     {
       role: "system",
-      content: `${TOOL_CONFIG.toolSpec}\nActive workspace: ${state.cwd}`,
+      content: `${TOOL_CONFIG.toolSpec}\nActive workspace: ${state.cwd}${memoryContext}`,
     },
     ...state.history,
     { role: "user", content: userInput },
