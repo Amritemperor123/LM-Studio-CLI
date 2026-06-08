@@ -1,4 +1,9 @@
 const els = {
+  heroView: document.getElementById("hero-view"),
+  dashboardView: document.getElementById("dashboard-view"),
+  heroWorkspace: document.getElementById("hero-workspace"),
+  heroEndpoint: document.getElementById("hero-endpoint"),
+  heroModel: document.getElementById("hero-model"),
   statusBadge: document.getElementById("status-badge"),
   sessionId: document.getElementById("session-id"),
   totalTokens: document.getElementById("total-tokens"),
@@ -30,6 +35,7 @@ const els = {
 };
 
 const state = {
+  hasStarted: false,
   inputTokens: 0,
   outputTokens: 0,
   runs: 0,
@@ -65,6 +71,16 @@ function connect() {
   });
 }
 
+function showDashboard() {
+  if (!state.hasStarted) {
+    state.hasStarted = true;
+    els.heroView.style.display = "none";
+    els.dashboardView.style.display = "grid";
+    // Find the right column and show it too
+    document.querySelector(".column.right").style.display = "grid";
+  }
+}
+
 function handleTelemetry(payload) {
   if (payload.event === "DASHBOARD_HISTORY") {
     resetDashboard();
@@ -83,6 +99,7 @@ function handleTelemetry(payload) {
       addTrailEntry("system", "Session", "CLI session connected to the telemetry hub.", time);
       break;
     case "RUN_START":
+      showDashboard();
       state.runs += 1;
       state.activeRunId = data.id;
       els.sessionId.textContent = shortId(data.id);
@@ -160,10 +177,15 @@ function setConfig(data) {
   if (data.model !== undefined) {
     els.activeModel.textContent = data.model || "Auto-select";
     els.usageModel.textContent = data.model || "Auto-select";
+    els.heroModel.textContent = data.model || "Auto-select";
   }
   if (data.cwd) {
     els.activeWorkspace.textContent = data.cwd;
     els.activeWorkspace.title = data.cwd;
+    els.heroWorkspace.textContent = data.cwd;
+  }
+  if (data.baseUrl) {
+    els.heroEndpoint.textContent = data.baseUrl;
   }
 }
 

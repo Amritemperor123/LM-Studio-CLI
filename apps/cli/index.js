@@ -74,14 +74,15 @@ async function main() {
     let line = "";
     let lines = [];
 
-    const side = paint(ANSI.dim, "│");
     printInputTop();
 
     try {
       while (true) {
+        // We include the background color code in the prompt to ensure it covers the typing area
+        const bg = "\x1b[48;5;236m";
         const prompt = lines.length === 0 
-          ? `${side} ${paint(ANSI.bold, "> ")}` 
-          : `${side} ${paint(ANSI.dim, "... ")}`;
+          ? `${bg}  ${paint(ANSI.bold, "> ")}` 
+          : `${bg}  ${paint(ANSI.dim, "... ")}`;
           
         const inputLine = await rl.question(prompt);
         

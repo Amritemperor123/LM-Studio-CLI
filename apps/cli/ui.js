@@ -42,13 +42,13 @@ export function clearThinking() {
 }
 
 export function printInputTop() {
-  const width = Math.min(output.columns || 80, 100);
-  output.write(paint(ANSI.dim, `╭─ User Input ${"─".repeat(width - 15)}╮\n`));
+  // Start the background color code so user input is inside the grey box
+  output.write("\x1b[48;5;236m"); 
 }
 
 export function printInputBottom() {
-  const width = Math.min(output.columns || 80, 100);
-  output.write(paint(ANSI.dim, `╰${"─".repeat(width - 2)}╯\n`));
+  // Reset background color and add extra newline for spacing
+  output.write("\x1b[0m\n\n");
 }
 
 export function printUser(message) {
@@ -119,42 +119,25 @@ export function printAssistant(message) {
 
 export function printBanner(state) {
   const width = Math.min(output.columns || 80, 100);
-  const innerWidth = width - 6;
-  const labelWidth = 14;
-
-  const lines = [
-    { label: "Workspace", value: state.cwd },
-    { label: "Endpoint", value: state.baseUrl },
-    { label: "Model", value: state.model || "None (use /model)" },
-    { label: "Commands", value: "/models /load /unload /help" },
+  
+  output.write("\n");
+  // Large, high-contrast, spaced-out header to replicate screenshot's "Big" font look
+  output.write(`\x1b[1m\x1b[38;5;255m      A G E N T   L O C A L\x1b[0m\n\n`);
+  
+  const labels = [
+    { label: "Welcome to Agent Local.", value: "" },
+    { label: "Your Workspace:", value: state.cwd },
+    { label: "Your Endpoint:", value: state.baseUrl },
+    { label: "Your Model:", value: state.model || "None (use /model)" },
+    { label: "Available Commands:", value: "/models /load /unload /help" },
   ];
 
-  const top = paint(ANSI.dim, `╭${"─".repeat(width - 2)}╮`);
-  const bottom = paint(ANSI.dim, `╰${"─".repeat(width - 2)}╯`);
-  const side = paint(ANSI.dim, "│");
-
-  output.write(`\n${header(" LM Studio Agent CLI ")}\n`);
-  output.write(`${top}\n`);
-
-  for (const { label, value } of lines) {
-    const labelStr = paint(ANSI.dim, `${label}:`.padEnd(labelWidth));
-    const content = `${labelStr} ${value}`;
-    
-    const visibleLength = stringWidth(stripAnsi(content));
-    let paddedContent = content;
-
-    if (visibleLength > innerWidth) {
-      const valueSpace = innerWidth - labelWidth - 1;
-      const truncatedValue = value.length > valueSpace ? value.slice(0, valueSpace - 3) + "..." : value;
-      paddedContent = `${labelStr} ${truncatedValue.padEnd(valueSpace)}`;
-    } else {
-      paddedContent += " ".repeat(innerWidth - visibleLength);
-    }
-
-    output.write(`${side}  ${paddedContent}  ${side}\n`);
+  for (const { label, value } of labels) {
+    const line = `    \x1b[38;5;244m${label}\x1b[0m ${value ? `\x1b[38;5;252m${value}\x1b[0m` : ""}`;
+    output.write(`${line}\n`);
   }
-
-  output.write(`${bottom}\n\n`);
+  
+  output.write("\n");
 }
 
 export function printHelp() {
