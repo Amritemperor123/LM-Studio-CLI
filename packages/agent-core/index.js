@@ -10,6 +10,7 @@ import {
   responseNeedsRecovery,
   userRequestLikelyNeedsMutation,
 } from "./prompting.js";
+import { retrieveContext } from "./retrieval.js";
 import {
   askPermission,
   printAssistant,
@@ -43,6 +44,9 @@ export async function runAgentTurn(line, state, client, rl) {
   };
 
   logger.debug(`Starting agent turn (Run ID: ${state.currentRun.id})`);
+  
+  const retrievedContext = await retrieveContext(line, state);
+
   telemetry.emit("RUN_START", {
     id: state.currentRun.id,
     userRequest: line,
@@ -51,7 +55,7 @@ export async function runAgentTurn(line, state, client, rl) {
     temperature: state.temperature,
   });
 
-  const messages = buildMessages(state, line);
+  const messages = buildMessages(state, line, retrievedContext);
   const requiresMutation = userRequestLikelyNeedsMutation(line);
   let finalReply = "";
   let lastToolResult = null;

@@ -21,6 +21,9 @@ export const RUNTIME_LIMITS = {
   maxCommandOutputBytes: 24_000,
   commandTimeoutMs: 30_000,
   maxToolRecoveryNudges: 2,
+  llmRequestTimeoutMs: 60_000,
+  llmMaxRetries: 3,
+  llmRetryDelayMs: 1000,
 };
 
 export const APPROVAL_POLICY = {

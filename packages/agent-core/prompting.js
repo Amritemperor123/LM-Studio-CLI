@@ -28,17 +28,19 @@ const INSPECTION_ONLY_REPLY_PATTERNS = [
   /^Command completed:\b/i,
 ];
 
-export function buildMessages(state, userInput) {
+export function buildMessages(state, userInput, retrievedContext = "") {
   const memoryContext = state.workspaceMemoryRef 
     ? `\nWorkspace Memory: ${JSON.stringify(state.workspaceMemoryRef.sessions.slice(-3))}`
     : "";
 
+  const systemMessage = {
+    role: "system",
+    content: `${TOOL_CONFIG.toolSpec}\nActive workspace: ${state.cwd}${memoryContext}${retrievedContext}`,
+  };
+
   return [
     { role: "system", content: state.systemPrompt },
-    {
-      role: "system",
-      content: `${TOOL_CONFIG.toolSpec}\nActive workspace: ${state.cwd}${memoryContext}`,
-    },
+    systemMessage,
     ...state.history,
     { role: "user", content: userInput },
   ];
